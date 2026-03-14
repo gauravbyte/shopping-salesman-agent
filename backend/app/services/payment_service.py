@@ -10,8 +10,6 @@ Wraps the five core APIs:
   5. create_refund         — refund a captured payment
 """
 
-from __future__ import annotations
-
 import logging
 from datetime import datetime, timezone
 from typing import Any
