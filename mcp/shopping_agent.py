@@ -1,10 +1,10 @@
 """
-Shopping Salesman MCP Server
+Shopping Salesman MCP Server (no-auth interface)
 
-Exposes tools so Claude can autonomously browse products,
-manage the cart, and place orders on the shopping site.
+Claude can browse products, manage the cart, and place orders.
+Authentication is handled transparently via env vars — no login tool needed.
 
-Usage (Claude Desktop config):
+Claude Desktop config:
   {
     "mcpServers": {
       "shopping": {
@@ -12,8 +12,8 @@ Usage (Claude Desktop config):
         "args": ["/absolute/path/to/mcp/shopping_agent.py"],
         "env": {
           "SHOP_API_URL": "http://localhost:8001",
-          "SHOP_EMAIL": "you@example.com",
-          "SHOP_PASSWORD": "yourpassword"
+          "SHOP_EMAIL": "admin@example.com",
+          "SHOP_PASSWORD": "admin123"
         }
       }
     }
@@ -25,24 +25,23 @@ import requests
 from mcp.server.fastmcp import FastMCP
 
 API_URL = os.getenv("SHOP_API_URL", "http://localhost:8001")
-DEFAULT_EMAIL = os.getenv("SHOP_EMAIL", "")
-DEFAULT_PASSWORD = os.getenv("SHOP_PASSWORD", "")
+SHOP_EMAIL = os.getenv("SHOP_EMAIL", "admin@example.com")
+SHOP_PASSWORD = os.getenv("SHOP_PASSWORD", "admin123")
 
 mcp = FastMCP("Shopping Salesman")
 
 # ---------------------------------------------------------------------------
-# Internal HTTP helpers
+# Internal auth — fully transparent, never exposed as a tool
 # ---------------------------------------------------------------------------
 
 _token: str = ""
 
 
-def _login(email: str, password: str) -> str:
-    """Authenticate and cache the JWT token."""
+def _refresh_token() -> str:
     global _token
     resp = requests.post(
         f"{API_URL}/auth/login",
-        data={"username": email, "password": password},
+        data={"username": SHOP_EMAIL, "password": SHOP_PASSWORD},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
         timeout=10,
     )
@@ -52,55 +51,45 @@ def _login(email: str, password: str) -> str:
 
 
 def _headers() -> dict:
-    """Return auth headers, auto-logging in with env credentials if needed."""
     global _token
-    if not _token and DEFAULT_EMAIL and DEFAULT_PASSWORD:
-        _login(DEFAULT_EMAIL, DEFAULT_PASSWORD)
-    return {"Authorization": f"Bearer {_token}"} if _token else {}
+    if not _token:
+        _refresh_token()
+    return {"Authorization": f"Bearer {_token}"}
 
 
-def _get(path: str, params: dict = None) -> dict | list:
+def _get(path: str, params: dict = None):
     r = requests.get(f"{API_URL}{path}", headers=_headers(), params=params, timeout=10)
+    if r.status_code == 401:
+        _refresh_token()
+        r = requests.get(f"{API_URL}{path}", headers=_headers(), params=params, timeout=10)
     r.raise_for_status()
     return r.json()
 
 
-def _post(path: str, json: dict = None, data: dict = None) -> dict:
-    r = requests.post(f"{API_URL}{path}", headers=_headers(), json=json, data=data, timeout=10)
+def _post(path: str, json: dict = None):
+    r = requests.post(f"{API_URL}{path}", headers=_headers(), json=json, timeout=10)
+    if r.status_code == 401:
+        _refresh_token()
+        r = requests.post(f"{API_URL}{path}", headers=_headers(), json=json, timeout=10)
     r.raise_for_status()
     return r.json()
 
 
-def _put(path: str, json: dict) -> dict:
+def _put(path: str, json: dict):
     r = requests.put(f"{API_URL}{path}", headers=_headers(), json=json, timeout=10)
+    if r.status_code == 401:
+        _refresh_token()
+        r = requests.put(f"{API_URL}{path}", headers=_headers(), json=json, timeout=10)
     r.raise_for_status()
     return r.json()
 
 
-def _delete(path: str) -> None:
+def _delete(path: str):
     r = requests.delete(f"{API_URL}{path}", headers=_headers(), timeout=10)
+    if r.status_code == 401:
+        _refresh_token()
+        r = requests.delete(f"{API_URL}{path}", headers=_headers(), timeout=10)
     r.raise_for_status()
-
-
-# ---------------------------------------------------------------------------
-# Auth tools
-# ---------------------------------------------------------------------------
-
-@mcp.tool()
-def login(email: str, password: str) -> str:
-    """
-    Log in to the shopping site with email and password.
-    Must be called before any cart or order operations.
-    Returns a confirmation message.
-    """
-    _login(email, password)
-    return f"Logged in as {email} successfully."
-
-
-@mcp.tool()
-def get_current_user() -> dict:
-    """Return the currently logged-in user's profile."""
-    return _get("/auth/me")
 
 
 # ---------------------------------------------------------------------------
@@ -119,13 +108,11 @@ def list_products(
     Browse products with optional filters.
 
     Args:
-        category: Category slug to filter by (e.g. 'electronics', 'clothing').
-        search:   Keyword to search in product name/description.
-        min_price: Minimum price filter (0 = no limit).
-        max_price: Maximum price filter (0 = no limit).
-        limit:    Max number of results (default 20).
-
-    Returns a list of products with id, name, description, price, stock.
+        category:  Category slug (e.g. 'electronics', 'clothing', 'books', 'home').
+        search:    Keyword to search in product name/description.
+        min_price: Minimum price (0 = no limit).
+        max_price: Maximum price (0 = no limit).
+        limit:     Max results (default 20).
     """
     params: dict = {"limit": limit}
     if category:
@@ -141,10 +128,7 @@ def list_products(
 
 @mcp.tool()
 def get_product(product_id: int) -> dict:
-    """
-    Get full details for a single product by its ID.
-    Returns name, description, price, stock, category.
-    """
+    """Get full details for a product by ID (name, price, stock, description)."""
     return _get(f"/products/{product_id}")
 
 
@@ -161,11 +145,10 @@ def list_categories() -> list:
 @mcp.tool()
 def view_cart() -> dict:
     """
-    View the current user's shopping cart.
-    Returns cart items with product details, quantities, and line totals.
+    View the shopping cart with items, quantities, and totals.
+    Returns item_count and grand_total for convenience.
     """
     cart = _get("/cart")
-    # Annotate with line totals for convenience
     items = cart.get("items", [])
     for item in items:
         item["line_total"] = round(item["quantity"] * item["product"]["price"], 2)
@@ -177,11 +160,11 @@ def view_cart() -> dict:
 @mcp.tool()
 def add_to_cart(product_id: int, quantity: int = 1) -> dict:
     """
-    Add a product to the cart (or increase its quantity if already there).
+    Add a product to the cart (increments if already present).
 
     Args:
-        product_id: The ID of the product to add.
-        quantity:   How many units to add (default 1).
+        product_id: ID of the product to add.
+        quantity:   Units to add (default 1).
     """
     return _post("/cart/items", json={"product_id": product_id, "quantity": quantity})
 
@@ -189,11 +172,11 @@ def add_to_cart(product_id: int, quantity: int = 1) -> dict:
 @mcp.tool()
 def update_cart_item(item_id: int, quantity: int) -> dict:
     """
-    Update the quantity of a specific cart item.
+    Update the quantity of a cart item.
 
     Args:
-        item_id:  The cart item ID (from view_cart).
-        quantity: New quantity (set to 0 to remove).
+        item_id:  Cart item ID (from view_cart).
+        quantity: New quantity.
     """
     return _put(f"/cart/items/{item_id}", json={"quantity": quantity})
 
@@ -201,10 +184,10 @@ def update_cart_item(item_id: int, quantity: int) -> dict:
 @mcp.tool()
 def remove_from_cart(item_id: int) -> str:
     """
-    Remove a specific item from the cart entirely.
+    Remove an item from the cart.
 
     Args:
-        item_id: The cart item ID (from view_cart).
+        item_id: Cart item ID (from view_cart).
     """
     _delete(f"/cart/items/{item_id}")
     return f"Item {item_id} removed from cart."
@@ -224,22 +207,19 @@ def clear_cart() -> str:
 @mcp.tool()
 def place_order() -> dict:
     """
-    Place an order for everything currently in the cart.
-    Validates stock, snapshots prices, clears the cart.
-    Returns the created order including a checkout_url for payment.
-    If checkout_url is present, the user must visit it to complete payment.
+    Place an order for everything in the cart.
+    Validates stock, locks prices, clears the cart.
+    Returns the order with a checkout_url — share this URL with the user to complete payment.
     """
     order = _post("/orders")
     if order.get("checkout_url"):
-        order["_note"] = (
-            f"Payment required. Direct the user to: {order['checkout_url']}"
-        )
+        order["_action"] = f"Send user to checkout: {order['checkout_url']}"
     return order
 
 
 @mcp.tool()
 def list_orders() -> list:
-    """List all orders placed by the current user, newest first."""
+    """List all orders, newest first."""
     orders = _get("/orders")
     return sorted(orders, key=lambda o: o["id"], reverse=True)
 
@@ -247,7 +227,7 @@ def list_orders() -> list:
 @mcp.tool()
 def get_order(order_id: int) -> dict:
     """
-    Get full details for a specific order including all line items.
+    Get full order details including all line items.
 
     Args:
         order_id: The order ID.
@@ -258,8 +238,8 @@ def get_order(order_id: int) -> dict:
 @mcp.tool()
 def sync_payment_status(order_id: int) -> dict:
     """
-    Poll Pine Labs for the latest payment status of an order and update it.
-    Use this after the user returns from the payment page.
+    Fetch the latest payment status from Pine Labs and update the order.
+    Call this after the user returns from the checkout URL.
 
     Args:
         order_id: The order ID to sync.
@@ -268,47 +248,38 @@ def sync_payment_status(order_id: int) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Convenience / agentic helpers
+# Agentic one-shot helpers
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
 def buy_product(product_id: int, quantity: int = 1) -> dict:
     """
-    One-shot: add a product to the cart and immediately place an order.
-    Equivalent to calling add_to_cart then place_order.
+    Add a product to cart and immediately place an order (one step).
 
     Args:
-        product_id: Product to buy.
-        quantity:   How many units (default 1).
-
-    Returns the created order with checkout_url for payment.
+        product_id: Product to purchase.
+        quantity:   Units to buy (default 1).
     """
     add_to_cart(product_id, quantity)
     return place_order()
 
 
 @mcp.tool()
-def search_and_buy(
-    search: str,
-    quantity: int = 1,
-    max_price: float = 0,
-) -> dict:
+def search_and_buy(search: str, quantity: int = 1, max_price: float = 0) -> dict:
     """
-    Search for a product by keyword and buy the first matching result.
+    Search for a product by keyword and buy the best match automatically.
 
     Args:
         search:    Search term (e.g. 'headphones', 'yoga mat').
         quantity:  How many to buy (default 1).
-        max_price: Optional price ceiling.
-
-    Returns the created order, or an error if no products found.
+        max_price: Optional price ceiling (0 = no limit).
     """
     results = list_products(search=search, max_price=max_price, limit=5)
     if not results:
         return {"error": f"No products found matching '{search}'."}
     product = results[0]
     if product["stock"] < quantity:
-        return {"error": f"Insufficient stock for '{product['name']}'. Available: {product['stock']}"}
+        return {"error": f"Only {product['stock']} units of '{product['name']}' available."}
     add_to_cart(product["id"], quantity)
     order = place_order()
     order["_bought_product"] = product
