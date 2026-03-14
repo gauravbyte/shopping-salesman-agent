@@ -1,3 +1,4 @@
+from typing import Optional
 from sqlalchemy import Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from ..database import Base
@@ -12,9 +13,9 @@ class Order(Base):
     # Order lifecycle: pending → payment_initiated → confirmed → shipped → delivered / cancelled
     status: Mapped[str] = mapped_column(String, default="pending")
     # Pine Labs fields (null until payment is initiated)
-    pine_labs_order_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    checkout_url: Mapped[str | None] = mapped_column(String, nullable=True)
-    payment_status: Mapped[str | None] = mapped_column(String, nullable=True)  # raw status from Pine Labs
+    pine_labs_order_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    checkout_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    payment_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # raw status from Pine Labs
 
     user = relationship("User", back_populates="orders")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")

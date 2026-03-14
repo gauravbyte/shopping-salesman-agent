@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Pine Labs PinePG payment service.
 
