@@ -20,13 +20,8 @@ export default function Cart() {
       <div className="space-y-4">
         {cart.items.map((item) => (
           <div key={item.id} className="flex items-center gap-4 border rounded-lg p-4 bg-white">
-            <img
-              src={item.product.image_url || "https://placehold.co/80x80?text=P"}
-              alt={item.product.name}
-              className="w-20 h-20 object-cover rounded"
-            />
             <div className="flex-1">
-              <Link to={`/products/₹{item.product.id}`} className="font-semibold text-gray-900 hover:text-indigo-600">
+              <Link to={`/products/${item.product.id}`} className="font-semibold text-gray-900 hover:text-indigo-600">
                 {item.product.name}
               </Link>
               <p className="text-gray-500 text-sm">₹{item.product.price.toFixed(2)} each</p>

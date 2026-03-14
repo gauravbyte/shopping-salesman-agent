@@ -12,8 +12,10 @@ class Settings(BaseSettings):
     PINE_LABS_MID: str = ""
     PINE_LABS_CLIENT_ID: str = ""
     PINE_LABS_CLIENT_SECRET: str = ""
-    # Where Pine Labs redirects the customer after payment
-    PINE_LABS_RETURN_URL: str = "http://localhost:5173/payment/return"
+    # Where Pine Labs POSTs the payment result (our backend endpoint)
+    PINE_LABS_RETURN_URL: str = "http://localhost:8001/payments/return"
+    # Frontend base URL — used to redirect customer after payment
+    FRONTEND_URL: str = "http://localhost:5173"
 
     class Config:
         env_file = ".env"

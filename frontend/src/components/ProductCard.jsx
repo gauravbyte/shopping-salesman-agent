@@ -13,15 +13,13 @@ export default function ProductCard({ product }) {
 
   return (
     <div className="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white">
-      <img
-        src={product.image_url || "https://placehold.co/400x300?text=Product"}
-        alt={product.name}
-        className="w-full h-48 object-cover"
-      />
       <div className="p-4">
-        <p className="text-xs text-indigo-500 uppercase font-semibold mb-1">
-          {product.category?.name ?? "Uncategorized"}
-        </p>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <p className="text-xs text-indigo-500 uppercase font-semibold">
+            {product.category?.name ?? "Uncategorized"}
+          </p>
+          <span className="text-xs text-gray-500">Stock: {product.stock}</span>
+        </div>
         <Link to={`/products/${product.id}`}>
           <h3 className="font-semibold text-gray-900 hover:text-indigo-600 line-clamp-2">{product.name}</h3>
         </Link>

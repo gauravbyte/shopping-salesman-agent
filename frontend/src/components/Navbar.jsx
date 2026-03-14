@@ -13,8 +13,11 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="bg-indigo-600 text-white px-6 py-3 flex items-center gap-6">
-      <Link to="/" className="font-bold text-xl tracking-tight">ShopSalesman</Link>
+    <nav className="bg-[#1b1730] text-[#f3eeff] border-b border-[#4b3f6f] px-6 py-3 flex items-center gap-6">
+      <Link to="/" className="flex items-center gap-3 font-bold tracking-tight">
+        <span className="w-8 h-8 rounded border border-[#6b5b98] bg-[#2f2750] text-[#e2c6ff] grid place-items-center text-sm">SS</span>
+        <span className="text-lg">Shop Salesman</span>
+      </Link>
       <Link to="/products" className="hover:text-indigo-200">Products</Link>
       <div className="ml-auto flex items-center gap-4">
         {user ? (
@@ -36,7 +39,7 @@ export default function Navbar() {
         ) : (
           <>
             <Link to="/login" className="hover:text-indigo-200">Login</Link>
-            <Link to="/register" className="bg-white text-indigo-600 px-3 py-1 rounded font-medium hover:bg-indigo-50 text-sm">
+            <Link to="/register" className="bg-indigo-600 text-white px-3 py-1 rounded font-medium hover:bg-indigo-700 text-sm border">
               Register
             </Link>
           </>
