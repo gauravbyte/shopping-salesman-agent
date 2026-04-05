@@ -1,4 +1,4 @@
-# Shopping Salesman Agent
+# Shopping Salesman Agent Hackathon Project
 
 An AI-powered ecommerce platform where Claude can autonomously browse products, manage a cart, and place orders via MCP (Model Context Protocol).
 
