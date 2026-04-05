@@ -1,5 +1,5 @@
 # Shopping Salesman Agent Hackathon Project
-
+Its a Hackathon Project in Pine labs landed top 10 postion in 100 teams. coudln't win but learned the lot
 An AI-powered ecommerce platform where Claude can autonomously browse products, manage a cart, and place orders via MCP (Model Context Protocol).
 
 ---
